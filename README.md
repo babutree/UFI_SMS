@@ -4,6 +4,8 @@ SMS_Forward https://github.com/n0raml/SMS-Forward
 
 ufi-message https://gitee.com/jiu-xiao/ufi-message
 
+ufi_sms https://github.com/Angels-Ray/ufi_sms
+
 # WeCom SMS Forwarder
 ## 项目简介
 
@@ -16,9 +18,9 @@ WeCom SMS Forwarder 是一个基于 Python 的工具，设计用于自动转发 
 
 在使用本项目之前，请确保安装以下依赖项：
 
-    Python 3
-    requests 库（用于处理 HTTP 请求）
-    cron（用于设置定时任务）
+Python 3
+requests 库（用于处理 HTTP 请求）
+cron（用于设置定时任务）
 
 依赖项安装示例：
 
