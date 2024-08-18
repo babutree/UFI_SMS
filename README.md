@@ -32,14 +32,6 @@ cron（用于设置定时任务）
 
 在使用短信转发功能之前，必须先配置 corp_init.py 文件，填入企业微信的相关信息：
 
-    Corpid: 企业ID（必填）
-    Agentid: 企业应用的ID（必填）
-    Corpsecret: 企业应用的凭证密钥（必填）
-    Touser: 接收者成员ID，默认值为@all，即发送给所有成员
-    Media_id: 媒体文件ID（可选，不填则默认发送文本消息）
-
-示例配置：
-
     Corpid = "your_corpid"  # 替换为你的企业ID
     Agentid = "your_agentid"  # 替换为你的企业应用ID
     Corpsecret = "your_corpsecret"  # 替换为你的企业应用凭证密钥
@@ -92,9 +84,11 @@ cron（用于设置定时任务）
 
 添加以下内容，使其每分钟查询一次新短信并转发：
 
-    */1 * * * * python3 /root/app/sms/msg.py forward
+    */1 * * * * python3 /home/user/UFI_WeCom_SMS_Forwarder/msg.py forward
 
-每分钟运行该任务，它会检查设备上是否有新收到的短信，并将未转发的短信内容推送到 WeCom。如果没有新短信，脚本会退出，不会进行推送。
+请将/home/user修改为脚本所在目录
+
+每分钟运行该任务，它会检查设备上是否有新收到的短信，并将未转发的短信内容推送到 WeCom应用。如果没有新短信，脚本会退出，不会进行推送。
 
 保存并退出后，cron 将每分钟执行一次短信转发任务。
 
