@@ -6,13 +6,14 @@ ufi-message https://gitee.com/jiu-xiao/ufi-message
 
 ufi_sms https://github.com/Angels-Ray/ufi_sms
 
-# WeCom SMS Forwarder
+# UFI WeCom SMS Forwarder
 ## 项目简介
 
-WeCom SMS Forwarder 是一个基于 Python 的工具，设计用于自动转发 Linux 设备接收到的短信到企业微信（WeCom）。通过这个工具，用户可以方便地将设备上的短信实时转发给企业微信中的指定成员，便于集中管理和及时处理短信内容。
-项目用途
+UFI WeCom SMS Forwarder 是一个基于 Python 的工具，设计用于自动转发已安装Debian的随身Wi-Fi设备（UFI）接收到的短信到企业微信（WeCom）自建应用。通过这个工具，用户可以方便地将设备上的短信实时转发给企业微信应用中的指定成员，便于集中管理和及时处理短信内容。
 
-该工具适用于需要在 Linux 设备上自动处理短信并通知相关人员的场景。例如，物联网设备的远程管理、监控系统的报警通知等。短信通过企业微信转发，确保重要信息能够及时传达到相关人员。
+## 项目用途
+
+该工具适用于需要在UFI设备上自动处理短信并通知相关人员的场景。例如，物联网设备的远程管理、监控系统的报警通知等。短信通过企业微信转发，确保重要信息能够及时传达到相关人员。
 
 ## 依赖项
 
