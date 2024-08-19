@@ -2,47 +2,54 @@ import os
 import sys
 import re
 import json
-import logging
 import requests
-from datetime import datetime, timedelta
+import hashlib
+import time
 from corp_init import Corpid, Agentid, Corpsecret, Touser, Media_id
 
-# 初始化日志记录
-logging.basicConfig(
-    filename='/home/UFI_WeCom_SMS_Forwarder/sms_log',
-    level=logging.INFO,
-    format='%(message)s'
-)
+log_dir = '/home/UFI_WeCom_SMS_Forwarder/'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
 
-# 短信缓存，用于防止重复发送
-last_sms = {"text": "", "time": datetime.now()}
+log_file = os.path.join(log_dir, 'sms_log')
+sent_messages = {}
 
-# 保存日志
+unknow = []
+sent = []
+recv = []
+
+# 保存日志到指定文件中
 def save_log(title, content):
-    logging.info(f"{content}\n{title}")
+    with open(log_file, 'a+', errors='ignore') as oldrss:
+        oldrss.write(f"{title} - {content}\n")
 
-# 企业微信APP推送消息
-def wecom_app(title: str, content: str) -> None:
+# 生成内容的哈希值用于重复检测
+def generate_hash(content):
+    cleaned_content = re.sub(r'\s+', '', content)
+    return hashlib.md5(cleaned_content.encode('utf-8')).hexdigest()
+
+# 企业微信APP推送功能
+def wecom_app(title: str, content: str, touser: str = Touser) -> str:
     if not Corpid:
-        logging.error("corp_init.py 未设置!!\n取消推送")
+        print("corp_init.py 未设置!!\n取消推送")
         return "error"
-    
+
+    print("企业微信APP推送服务启动")
     wx = WeCom(Corpid, Corpsecret, Agentid)
-    
-    recipient = Touser
-    
     if not Media_id:
-        message = title + "\n" + content
-        response = wx.send_text(message, recipient)
+        message = f"{title}\n{content}"
+        response = wx.send_text(message, touser)
     else:
-        response = wx.send_mpnews(title, content, Media_id, recipient)
+        response = wx.send_mpnews(title, content, Media_id, touser)
 
     if response == "ok":
-        logging.info("企业微信APP推送成功")
+        print("企业微信APP推送成功！")
+        save_log(title, content)
     else:
-        logging.error(f"推送失败：{response}")
+        print(f"推送失败！错误信息如下：\n{response}")
     return response
 
+# 企业微信APP相关配置和发送方法
 class WeCom:
     def __init__(self, corpid, corpsecret, agentid):
         self.CORPID = corpid
@@ -56,14 +63,11 @@ class WeCom:
             "corpsecret": self.CORPSECRET,
         }
         req = requests.post(url, params=values)
-        data = json.loads(req.text)
+        data = req.json()
         return data["access_token"]
 
-    def send_text(self, message, touser):
-        send_url = (
-            "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token="
-            + self.get_access_token()
-        )
+    def send_text(self, message, touser="@all"):
+        send_url = f"https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={self.get_access_token()}"
         send_values = {
             "touser": touser,
             "msgtype": "text",
@@ -72,14 +76,12 @@ class WeCom:
             "safe": "0",
         }
         send_msges = bytes(json.dumps(send_values), "utf-8")
-        response = requests.post(send_url, send_msges)
-        return response.json().get("errmsg", "error")
+        respone = requests.post(send_url, send_msges)
+        respone = respone.json()
+        return respone["errmsg"]
 
-    def send_mpnews(self, title, message, media_id, touser):
-        send_url = (
-            "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token="
-            + self.get_access_token()
-        )
+    def send_mpnews(self, title, message, media_id, touser="@all"):
+        send_url = f"https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={self.get_access_token()}"
         send_values = {
             "touser": touser,
             "msgtype": "mpnews",
@@ -98,20 +100,25 @@ class WeCom:
             },
         }
         send_msges = bytes(json.dumps(send_values), "utf-8")
-        response = requests.post(send_url, send_msges)
-        return response.json().get("errmsg", "error")
+        respone = requests.post(send_url, send_msges)
+        respone = respone.json()
+        return respone["errmsg"]
 
+# 获取短信编号
 def get_msg_num(line):
-    return int(line.rstrip(' (sent)\n').rstrip(' (received)\n').rstrip(' (unknown)\n')[::-1].split('/',1)[0])
+    return int(line.rstrip(' (sent)\n').rstrip(' (received)\n').rstrip(' (unknown)\n')[::-1].split('/', 1)[0])
 
+# 发送短信
 def send_msg(num):
-    os.system("sudo mmcli -s "+str(num)+" --send")
+    os.system(f"sudo mmcli -s {num} --send")
 
+# 删除短信
 def del_msg(num):
-    os.system("sudo mmcli -m 0 --messaging-delete-sms="+str(num))
+    os.system(f"sudo mmcli -m 0 --messaging-delete-sms={num}")
 
+# 扫描本地短信
 def scan_local_msg():
-    p=os.popen('mmcli -m 0 --messaging-list-sms') 
+    p = os.popen('mmcli -m 0 --messaging-list-sms')
     for line in p.readlines():
         if line.endswith(' (unknown)\n'):
             num = get_msg_num(line)
@@ -121,50 +128,65 @@ def scan_local_msg():
             sent.append(num)
         if line.endswith(' (received)\n'):
             num = get_msg_num(line)
-            recv.append(num)    
+            recv.append(num)
     print('未发送：', unknow, '已发送：', sent, '接收：', recv)
 
+# 添加短信到暂存区
 def add_msg(number, text):
-    os.system("sudo mmcli -m 0 --messaging-create-sms=\"text=\'"+text+"\',number=\'+"+number+"\'\"")
+    os.system(f"sudo mmcli -m 0 --messaging-create-sms=\"text='{text}',number='+{number}'\"")
 
+# 清理已发送短信
 def clean_sent():
     for i in sent:
         del_msg(i)
-        
+
+# 清理未发送短信
 def clean_unknow():
     for i in unknow:
         del_msg(i)
-        
+
+# 清理接收的短信
 def clean_recv():
     for i in recv:
         del_msg(i)
 
+# 发送所有未发送短信
 def send_all():
     for i in unknow:
         send_msg(i)
 
+# 检测是否为重复短信
+def is_duplicate(content):
+    message_hash = generate_hash(content)
+    current_time = time.time()
+
+    if message_hash in sent_messages:
+        last_sent_time = sent_messages[message_hash]
+        if current_time - last_sent_time < 60:  # 60秒重复检测
+            print(f"检测到重复短信，60秒内不发送: {content}")
+            save_log("重复短信检测", content)
+            return True
+
+    sent_messages[message_hash] = current_time
+    return False
+
+# 转发接收的短信
 def forward_msg():
-    global last_sms
-    
     for i in recv:
-        p = os.popen('mmcli -m 0 -s ' + str(i))
-        sms = re.sub('\s|\t|\n|-','',p.read())
-        
+        p = os.popen(f'mmcli -m 0 -s {i}')
+        sms = re.sub(r'\s|\t|\n|-', '', p.read())
         number = sms[sms.find('number:') + 7:sms.find('|text')]
         text = sms[sms.find('text:') + 5:sms.find('Properties|')]
-        time = sms[sms.find('timestamp:') + 10:sms.find('timestamp:') + 27].replace('T', ' - ')
-        
-        current_time = datetime.now()
-        
-        if text != last_sms["text"] or (current_time - last_sms["time"]).seconds > 60:
-            response = wecom_app(text, f"{number}\nUFI-{time}")
+        time_stamp = sms[sms.find('timestamp:') + 10:sms.find('timestamp:') + 27].replace('T', ' - ')
+
+        content = f"{text}\n{number}\nUFI-{time_stamp}"
+
+        if not is_duplicate(content):
+            response = wecom_app(f"{text}\n", content, touser=Touser)
             if response == "ok":
-                save_log(text, f"{number}\nUFI-{time}")
                 del_msg(i)
-                last_sms = {"text": text, "time": current_time}
 
 cmd = sys.argv
-cmd_len = len(cmd)
 try:
     if cmd[1] == 'add':
         add_msg(cmd[2], cmd[3])
@@ -180,6 +202,6 @@ try:
         scan_local_msg()
         forward_msg()
     else:
-        pass
+        print("Invalid command")
 except IndexError:
-    pass
+    print("Invalid command")
