@@ -175,9 +175,16 @@ def forward_msg():
     for i in recv:
         p = os.popen(f'mmcli -m 0 -s {i}')
         sms = re.sub(r'\s|\t|\n|-', '', p.read())
+        
+        # 提取短信中的信息
         number = sms[sms.find('number:') + 7:sms.find('|text')]
         text = sms[sms.find('text:') + 5:sms.find('Properties|')]
         time_stamp = sms[sms.find('timestamp:') + 10:sms.find('timestamp:') + 27].replace('T', ' - ')
+
+        # 如果短信内容为空，跳过处理
+        if not text:
+            print(f"检测到空短信，跳过处理。编号: {i}")
+            continue
 
         content = f"{text}\n{number}\nUFI-{time_stamp}"
 
