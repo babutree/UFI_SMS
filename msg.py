@@ -2,18 +2,29 @@ import os
 import re
 import json
 import logging
+import hashlib
 import requests
 import subprocess
 import argparse
+from time import time
+from pathlib import Path
+
 from corp_init import Corpid, Agentid, Corpsecret, Touser, Media_id
 
-# 设置日志
-logging.basicConfig(filename='sms_log', level=logging.INFO, format='%(asctime)s %(message)s')
+# 设置日志目录和文件路径
+log_dir = Path('/home/UFI_WeCom_SMS_Forwarder/')
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / 'sms_log'
+
+# 配置日志
+logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s %(message)s')
 
 # 全局变量
 unknow = []
 sent = []
 recv = []
+processed_messages = []  # 记录处理过的短信的MD5和时间戳
+DUPLICATE_CHECK_DURATION = 30  # 重复检查的时间窗口（秒）
 
 class WeCom:
     def __init__(self, corpid, corpsecret, agentid):
@@ -102,6 +113,29 @@ def wecom_app(title: str, content: str) -> None:
         logging.error(f"企业微信推送失败：{response}")
     return response
 
+def calculate_md5(text):
+    """计算给定文本的MD5哈希值"""
+    return hashlib.md5(text.encode('utf-8')).hexdigest()
+
+def clean_old_messages():
+    """清理超过1分钟的已处理消息记录"""
+    current_time = time()
+    global processed_messages
+    processed_messages = [
+        (msg_md5, timestamp) for msg_md5, timestamp in processed_messages
+        if current_time - timestamp < DUPLICATE_CHECK_DURATION
+    ]
+
+def is_duplicate_sms(sms_md5):
+    """检测1分钟内是否存在重复短信"""
+    clean_old_messages()
+    current_time = time()
+    for msg_md5, timestamp in processed_messages:
+        if sms_md5 == msg_md5:
+            return True
+    processed_messages.append((sms_md5, current_time))
+    return False
+
 def get_msg_num(line):
     return int(line.rstrip(' (sent)\n').rstrip(' (received)\n').rstrip(' (unknown)\n')[::-1].split('/', 1)[0])
 
@@ -147,9 +181,17 @@ def forward_msg():
         sms = re.sub(r'\s|\t|\n|-', '', result.stdout)
         number = sms[sms.find('number:') + 7:sms.find('|text')]
         text = sms[sms.find('text:') + 5:sms.find('Properties|')]
-        time = sms[sms.find('timestamp:') + 10:sms.find('timestamp:') + 27].replace('T', ' - ')
+        timestamp = sms[sms.find('timestamp:') + 10:sms.find('timestamp:') + 27].replace('T', ' - ')
 
-        response = wecom_app(f"{number}\n", f"{text}\n\n{time}")
+        # 计算短信内容的MD5哈希值
+        sms_md5 = calculate_md5(number + text)
+
+        # 检查是否为重复短信
+        if is_duplicate_sms(sms_md5):
+            logging.info(f"检测到重复短信，忽略: {number} - {text}")
+            continue
+
+        response = wecom_app(f"{number}\n", f"{text}\n\n{timestamp}")
 
         if response == "ok":
             del_msg(i)
