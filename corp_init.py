@@ -20,5 +20,5 @@ WeCom 配置文件
 Corpid = ""  # 必填：请填写你的企业ID
 Agentid = ""  # 必填：请填写你的企业应用ID
 Corpsecret = ""  # 必填：请填写你的企业应用凭证密钥
-Touser = "@all"  # 必填：默认为@all，发送给所有成员
+Touser = ""  # 必填：默认为@all，发送给所有成员
 Media_id = ""  # 可选：媒体文件ID，不填则默认发送文本消息
